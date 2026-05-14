@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Data and model outputs (too large for git)
+outputs/
+database/
+transfer_bundles/
+logs/
+review_videos/
+pretrained/
+eval_results/
+
+# CARLA symlink target (local path)
+f2d_carla
+
+# Runtime files
+*.log
+*.err
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

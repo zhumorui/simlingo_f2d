@@ -1,0 +1,21 @@
+<routes>
+  <route id="0" town="Town05">
+    <weathers>
+      <weather route_percentage="0" cloudiness="5.0" precipitation="0.0" precipitation_deposits="0.0" wetness="0.0" wind_intensity="10.0" sun_azimuth_angle="-1.0" sun_altitude_angle="45.0" fog_density="2.0" fog_distance="0.75" fog_falloff="0.1" scattering_intensity="1.0" mie_scattering_scale="0.03"/>
+      <weather route_percentage="100" cloudiness="5.0" precipitation="0.0" precipitation_deposits="0.0" wetness="0.0" wind_intensity="10.0" sun_azimuth_angle="-1.0" sun_altitude_angle="45.0" fog_density="2.0" fog_distance="0.75" fog_falloff="0.1" scattering_intensity="1.0" mie_scattering_scale="0.03"/>
+    </weathers>
+    <waypoints>
+      <position x="60.1" y="1.8" z="0.0"/>
+      <position x="103.2" y="-50.4" z="0.0"/>
+    </waypoints>
+    <scenarios>
+      <scenario name="CustomObstacle_0" type="CustomObstacle">
+        <distance value="15"/>
+        <baseline_overlay value="construction"/>
+        <overlay_direction value="right"/>
+        <objects a="id=static.prop.slide x=0.00 y=0.00 yaw=0.00"/>
+        <trigger_point x="103.4" y="-17.5" z="0.0" yaw="-89.8"/>
+      </scenario>
+    </scenarios>
+  </route>
+</routes>

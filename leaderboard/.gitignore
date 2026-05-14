@@ -1,0 +1,10 @@
+*.pyc
+*.json
+*.log
+.project
+.pydevproject
+*.sh
+# Allow route XML files (fail2drive_split, fail2drive_customized, bench2drive_split, etc.)
+*.xml
+!data/**/*.xml
+!data/*.xml

@@ -1,0 +1,22 @@
+<routes>
+  <route id="0" town="Town13">
+    <weathers>
+      <weather route_percentage="0" cloudiness="5.0" precipitation="0.0" precipitation_deposits="0.0" wetness="0.0" wind_intensity="10.0" sun_azimuth_angle="-1.0" sun_altitude_angle="45.0" fog_density="2.0" fog_distance="0.75" fog_falloff="0.1" scattering_intensity="1.0" mie_scattering_scale="0.03"/>
+      <weather route_percentage="100" cloudiness="5.0" precipitation="0.0" precipitation_deposits="0.0" wetness="0.0" wind_intensity="10.0" sun_azimuth_angle="-1.0" sun_altitude_angle="45.0" fog_density="2.0" fog_distance="0.75" fog_falloff="0.1" scattering_intensity="1.0" mie_scattering_scale="0.03"/>
+    </weathers>
+    <waypoints>
+      <position x="5386.9" y="3561.7" z="159.0"/>
+      <position x="5420.0" y="3525.7" z="158.7"/>
+    </waypoints>
+    <scenarios>
+      <scenario name="DynamicObjectCrossing_0" type="DynamicObjectCrossing">
+        <distance value="12"/>
+        <direction value="right"/>
+        <blocker_model value="static.prop.vendingmachine"/>
+        <crossing_angle value="0"/>
+        <walker value="walker.pedestrian.*"/>
+        <trigger_point x="5419.9" y="3543.0" z="158.7" yaw="270.3"/>
+      </scenario>
+    </scenarios>
+  </route>
+</routes>

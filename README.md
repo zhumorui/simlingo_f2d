@@ -364,8 +364,62 @@ For scenarios where a blocked road would unfairly fail `MinSpeedTest`, add:
 ## Collecting Training Data on Fail2Drive Scenes
 
 PDM-lite can collect training data on Fail2Drive routes (for fine-tuning SimLingo on new scenarios).
+Two scripts are available depending on your setup.
 
-Edit `collect_dataset_f2d.py` and fill in paths at the bottom:
+### Option A — Local (no SLURM)
+
+`collect_local.py` is the local equivalent of `collect_dataset_f2d.py`. It starts and stops CARLA automatically per route, exactly like `start_eval_local.py`.
+
+Edit the `config` dict at the top of `collect_local.py`:
+
+```python
+config = {
+    # Folder containing .xml route files to collect on
+    "route_path": "/path/to/simlingo_f2d/leaderboard/data/fail2drive_customized",
+
+    # Output root; data goes to <out_root>/data/<route_id>/
+    "out_root": "/path/to/simlingo_f2d/database/collect_local_<date>",
+
+    "carla_root": "/path/to/CarlaUE4_0.9.15",
+    "repo_root":  "/path/to/simlingo_f2d",
+
+    "seed":  1,
+    "tries": 2,
+
+    # 1 = also save merged BEV+RGB visualization frames for visual inspection
+    "tmp_visu": 0,
+
+    # 1 = also save semantic segmentation + depth (needed for full label generation)
+    "save_tf_labels": 0,
+}
+```
+
+Run:
+```bash
+conda activate simlingo_f2d
+cd /path/to/simlingo_f2d
+python collect_local.py
+```
+
+**Output layout:**
+```
+database/collect_local_<date>/
+    data/<route_id>/
+        rgb/            # front-camera frames (JPEG)
+        rgb_augmented/  # augmented camera frames
+        lidar/          # LiDAR point clouds
+        boxes/          # 3D bounding box JSON per frame
+        bev_semantics/  # BEV semantic maps (if save_tf_labels=1)
+        semantics/      # semantic segmentation (if save_tf_labels=1)
+    results/<route_id>_res.json
+    logs/<route_id>_out.log
+```
+
+To browse the collected data visually, look at the saved `rgb/` frames directly, or set `tmp_visu=1` to also get merged BEV+RGB composite frames in `bev_visu/`.
+
+### Option B — SLURM cluster
+
+Edit `collect_dataset_f2d.py` paths at the bottom:
 ```python
 default_partition = "YOUR_SLURM_PARTITION"
 username          = "YOUR_USERNAME"
@@ -373,14 +427,15 @@ code_root         = "/path/to/simlingo_f2d"
 carla_root        = "/path/to/CarlaUE4_0.9.15"
 ```
 
-Run:
 ```bash
 conda activate simlingo_f2d
-echo "4" > max_num_jobs.txt    # max parallel SLURM jobs
+echo "4" > max_num_jobs.txt
 python collect_dataset_f2d.py
 ```
 
-Data is saved to `database/simlingo_f2d_<date>/data/<route_id>/` in the same format as the original SimLingo dataset. Add the new path to `simlingo_training/config/` alongside the original dataset.
+### Using collected data for training
+
+Data is saved in the same format as the original SimLingo dataset. Add the new data directory to `simlingo_training/config/` alongside the original dataset path.
 
 ---
 

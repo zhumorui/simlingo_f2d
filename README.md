@@ -1,366 +1,339 @@
-# SimLingo + Fail2Drive: Long-Tail Scenario Evaluation & Data Collection
+# SimLingo + Fail2Drive
 
-> This repository extends [SimLingo (CVPR'25 Highlight)](https://github.com/RenzKa/simlingo) with [Fail2Drive](https://github.com/autonomousvision/fail2drive) support, enabling evaluation and PDM-lite data collection on long-tail unseen scenarios.
+This repository extends [SimLingo (CVPR'25 Highlight)](https://github.com/RenzKa/simlingo) with [Fail2Drive](https://github.com/autonomousvision/fail2drive) support, enabling closed-loop evaluation and PDM-lite data collection on long-tail unseen scenarios using CARLA 0.9.15.
+
+> **Upstream:** [RenzKa/simlingo](https://github.com/RenzKa/simlingo) — see that repo for original training, dataset, and Bench2Drive documentation.
 
 ---
 
-# [CVPR'25, Highlight] SimLingo: Vision-Only Closed-Loop Autonomous Driving with Language-Action Alignment
-
-<p align="center">
-  <h3 align="center">
-    <a href="https://arxiv.org/abs/2503.09594"> Paper</a> | <a href="https://www.youtube.com/watch?v=Mpbnz2AKaNA&t=15s">Video</a> | <a href="https://www.katrinrenz.de/simlingo/">Website</a> | <a href="https://huggingface.co/datasets/RenzKa/simlingo">Dataset</a> | <a href="https://huggingface.co/RenzKa/simlingo">Model</a> 
-  </h3>
-</p>
-
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/carllava-vision-language-models-for-camera/carla-leaderboard-2-0-on-carla)](https://paperswithcode.com/sota/carla-leaderboard-2-0-on-carla?p=carllava-vision-language-models-for-camera)
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/carllava-vision-language-models-for-camera/bench2drive-on-bench2drive)](https://paperswithcode.com/sota/bench2drive-on-bench2drive?p=carllava-vision-language-models-for-camera)
-
-<p align="center" style="font-size:17px;">
-SimLingo is a Vision-Language-Action (VLA) model that achieves state-of-the-art driving performance on the CARLA Leaderboard and Bench2Drive, while simultaniously including language capabilities like VQA, commentary, and instruction following.
-</p>
-
-<p align="center">
-  <img src="assets/simlingo_teaser.png">
-</p>
-
-
-
-This repository is based on [Carla Garage](https://github.com/autonomousvision/carla_garage) and includes the PDM-lite expert, data collection code, language label generation, dreaming data generation, training of the base and final model, and evaluation of closed-loop driving and the language capabilities.
-
-## 6-minute summary <a name="summary"></a> 
-
-[<img src="assets/thumbnail.png" width="100%">](https://youtu.be/Mpbnz2AKaNA?si=qdQfhGIwnCbtD2DQ)
-
-
-## News <a name="news"></a>
-- **`[2025/06/25]`** We released the simlingo model checkpoints and inference code.
-- **`[2025/05/26]`** We released the full dataset on huggingface.
-- **`[2025/05/08]`** Initial code release.
-- **`[2025/04/28]`** SimLingo is accepted to CVPR as a highlight paper.
-
-
 ## Contents
-1. [Setup](#setup)
-   - [simlingo_f2d environment (Fail2Drive + SimLingo)](#simlingo_f2d-environment)
-2. [Repository structure](#repository-structure)
-3. [Dataset download](#dataset-download)
-4. [Data Generation](#data-generation)
-    - [Driving Data](#driving-data)
-    - [Language Data](#language-data)
-    - [Dreamer Data](#dreamer-data)
-5. [Training](#training)
-6. [Evaluation](#evaluation)
-    - [Closed-loop driving/ Bench2Drive](#bench2drive)
-    - [Language eval](#language-eval)
-7. [Fail2Drive Integration](#fail2drive-integration)
-    - [Creating New Scenes](#creating-new-scenes)
-    - [Evaluating SimLingo on Fail2Drive Scenes](#evaluating-simlingo-on-fail2drive-scenes)
-    - [Collecting Training Data on Fail2Drive Scenes](#collecting-training-data-on-fail2drive-scenes)
-8. [Citations](#citations)
-   
-   
-## Setup
 
-Clone the repository, setup CARLA 0.9.15, and build the conda environment:
-```Shell
-git clone git@github.com:RenzKa/simlingo.git
-cd simlingo
-chmod +x setup_carla.sh
-./setup_carla.sh
+1. [Environment Setup](#environment-setup)
+2. [Compatibility Fixes Applied](#compatibility-fixes-applied)
+3. [Repository Structure](#repository-structure)
+4. [Evaluating on Fail2Drive Scenes (Local, No SLURM)](#evaluating-on-fail2drive-scenes-local-no-slurm)
+   - [Config Reference](#config-reference)
+   - [GPU Assignment Notes](#gpu-assignment-notes)
+   - [Checking Results](#checking-results)
+5. [Creating New Custom Scenes](#creating-new-custom-scenes)
+6. [Collecting Training Data on Fail2Drive Scenes](#collecting-training-data-on-fail2drive-scenes)
+7. [Citations](#citations)
 
-# Create base environment
-conda env create -f environment.yaml
-conda activate simlingo
+---
 
-# Install PyTorch separately to ensure correct CUDA version
-pip install torch==2.2.0
+## Environment Setup
 
-# Install flash-attn separately
-pip install flash-attn==2.7.0.post2
-```
+### Prerequisites
 
-Before running the code, you will need to add the following paths to PYTHONPATH on your system:
-```Shell
-export CARLA_ROOT=/path/to/CARLA/root
-export WORK_DIR=/path/to/simlingo
-export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
-export SCENARIO_RUNNER_ROOT=${WORK_DIR}/scenario_runner
-export LEADERBOARD_ROOT=${WORK_DIR}/leaderboard
-export PYTHONPATH="${CARLA_ROOT}/PythonAPI/carla/":"${SCENARIO_RUNNER_ROOT}":"${LEADERBOARD_ROOT}":${PYTHONPATH}
-```
-
-### simlingo_f2d environment
-
-This fork adds a second conda environment `simlingo_f2d` that supports both SimLingo and Fail2Drive.
-It uses **Python 3.10** and the **CARLA 0.9.15 Python 3.10 wheel** from Fail2Drive.
-
-#### Prerequisites
-- CARLA 0.9.15 installation with the Python 3.10 wheel
-  (the Fail2Drive distribution ships `CarlaUE4/PythonAPI/carla/dist/carla-0.9.15-cp310-cp310-linux_x86_64.whl`)
+- CARLA 0.9.15 with the **Python 3.10 wheel** (the Fail2Drive distribution ships this at `CarlaUE4/PythonAPI/carla/dist/carla-0.9.15-cp310-cp310-linux_x86_64.whl`)
 - conda / mamba
+- NVIDIA GPU with CUDA 12.x (flash-attn is compiled for CUDA 12.4)
 
-#### Step 1 — Clone this repo
+### Step 1 — Clone
+
 ```bash
 git clone git@github.com:zhumorui/simlingo_f2d.git
 cd simlingo_f2d
 ```
 
-#### Step 2 — Symlink CARLA
-Point `f2d_carla` inside the repo root at your CARLA 0.9.15 installation:
+### Step 2 — Symlink CARLA
+
 ```bash
-# Replace the path below with where your CARLA 0.9.15 is installed
 ln -s /path/to/CarlaUE4_0.9.15  f2d_carla
 ```
 
-#### Step 3 — Create the conda environment
+### Step 3 — Create the conda environment
+
 ```bash
 conda env create -f environment_f2d.yaml
 conda activate simlingo_f2d
 ```
-This installs Python 3.10 and all packages from `team_code/requirements.txt`.
 
-#### Step 4 — Install CARLA Python API (Python 3.10 wheel)
+This installs Python 3.10 and the packages in `team_code/requirements.txt`.
+
+### Step 4 — Install CARLA Python wheel
+
 ```bash
 pip install f2d_carla/PythonAPI/carla/dist/carla-0.9.15-cp310-cp310-linux_x86_64.whl
 ```
 
-#### Step 5 — Install flash-attn
+### Step 5 — Install flash-attn
+
+flash-attn must be compiled against the installed CUDA toolkit. On a CUDA 12.x machine:
+
 ```bash
 pip install flash-attn
 ```
 
-#### Step 6 — Configure environment paths
-Run the setup script once to bake the paths into the conda env:
+If this fails, build from source:
 ```bash
-source env_vars.sh
+pip install flash-attn --no-build-isolation
 ```
-After this step, activating `simlingo_f2d` automatically sets all required `PYTHONPATH` / `CARLA_ROOT` variables.
 
-#### Verification
+### Step 6 — Download / place the SimLingo model checkpoint
+
+Download from [HuggingFace (RenzKa/simlingo)](https://huggingface.co/RenzKa/simlingo) and place at:
+```
+/path/to/models/simlingo_official/simlingo/checkpoints/epoch=013.ckpt/pytorch_model.pt
+```
+
+### Step 7 — Place the InternVL2-1B base model locally
+
+`agent_simlingo.py` loads `OpenGVLab/InternVL2-1B` via HuggingFace AutoModel. When running offline (`TRANSFORMERS_OFFLINE=1`), it must be resolved from a local directory. Create a symlink in `pretrained/`:
+
+```bash
+mkdir -p pretrained
+# Download InternVL2-1B from HuggingFace once, then symlink:
+ln -s /path/to/InternVL2-1B  pretrained/InternVL2-1B
+```
+
+The agent automatically detects and uses the local path at startup (see [Compatibility Fixes](#compatibility-fixes-applied)).
+
+### Verification
+
 ```bash
 conda activate simlingo_f2d
 python -c "import carla; print('CARLA OK:', carla.__version__)"
 python -c "import torch; print('PyTorch OK:', torch.__version__)"
+python -c "import pytorch_lightning; print('PL OK:', pytorch_lightning.__version__)"
+python -c "import peft; print('peft OK:', peft.__version__)"
 ```
-
-
-
-## Repository structure
-The main structure of this repository is taken from [Carla Garage](https://github.com/autonomousvision/carla_garage). Please check it out for more detailed information.
-
-**CARLA**: We have the `leaderboard_autopilot` and `scenario_runner_autopilot` folders for running data collection. The `leaderboard` and `scenario_runner` folder are currently mostly unused (they just contain the route files for evaluation) but can be used to run evaluation on the CARLA eval routes or longest6_v2 or other benchmarks (see [Carla Garage](https://github.com/autonomousvision/carla_garage)). The folder `Bench2Drive` (with its own leaderboard and scenario_runner folders) is used to run closed-loop eval on the Bench2Drive Benchmark. The `team_code` folder is used for all files to run closed-loop agents in carla (for the expert, simlingo and simlingo_base).
-
-**Training**: `simlingo_base_training` and `simlingo_training` contain all files to run training. `simlingo_training` also contains the files to start the language evaluation.
-
-**Dataset**: Our dataset is stored in a folder called `database`.
-
-
-
-## Dataset download
-You can find our dataset here: https://huggingface.co/datasets/RenzKa/simlingo
-The uploaded data contains the driving dataset, VQA, Commentary, and Dreamer labels.
-### Download the whole dataset using git with Git LFS
-
-```bash
-# Clone the repository
-git clone https://huggingface.co/datasets/RenzKa/simlingo
-
-# Navigate to the directory
-cd simlingo
-
-# Pull the LFS files
-git lfs pull
-```
-
-### Download a single file with wget
-
-```bash
-# Download individual files (replace with actual file URLs from Hugging Face)
-wget https://huggingface.co/datasets/RenzKa/simlingo/resolve/main/[filename].tar.gz
-```
-
-### Extract to a single directory - please specify the location where you want to store the dataset
-```bash
-# Create output directory
-mkdir -p database/simlingo
-
-# Extract all archives to the same directory
-for file in *.tar.gz; do
-    echo "Extracting $file to database/simlingo/..."
-    tar -xzf "$file" -C database/simlingo/
-done
-```
-
-
-## Dataset generation
-If you download our dataset from Huggingface, you don't need to follow any of the steps from this section.
-If you only want to perfrom closed-loop driving evaluation, there is no need to download our dataset.
-
-### Driving Data
-
-This repository uses the open-source expert PDM-Lite from the paper [DriveLM](https://arxiv.org/abs/2312.14150) to generate the driving dataset. Most of the code for the data collection is taken from [Carla Garage](https://github.com/autonomousvision/carla_garage). However, we changed some hyperparameter and used the data_agent from DriveLM which saves the required auxiliary information during data collection which is needed to generate the VQA and commentary data.
-
-**Generate driving data:** To re-generate the data, we provide a script for a SLURM cluster, which parallelizes data collection across many GPUs (2080ti in our case). First, adjust the paths etc. in lines 213-230 of [collect_dataset_slurm.py](collect_dataset_slurm.py). You can specify the SLURM partition in [partition.txt](partition.txt) and change it during runtime. [max_num_jobs.txt](max_num_jobs.txt) specifies how many parallel SLURM jobs are submitted. This can also be changed during runtime. The data collection is started via `sbatch 0_run_collect_dataset_slurm.sh`, which calls `collect_dataset_slurm.py`. 
-Increase the number in [max_num_jobs.txt](max_num_jobs.txt) once your setup works. 
-
-**Dataset cleaning:** After the dataset is collected you can use `dataset_generation/delete_failed_runs.py` and `dataset_generation/delete_infraction_routes.py` to delete routes where the expert failed or carla crashed and the routes had to be restarted.
-
-**Route files:** The routes for data collection are stored in [data/simlingo](data/simlingo/). **Note:** These are different route files as used in the Carla Garage. To generate our route files, you can use the following script that generates our modified route files from the original Carla route files: `bash dataset_generation/split_route_files.sh`
-This splits the long training and validation route files provided by Carla into short routes with max 1 or 3 scenarios and balances and upsamples the scenarios.
-
-PDM-Lite uses a modified version of the CARLA leaderboard that exposes additional information about the scenarios and makes data collection easier. They can be found in the [leaderboard_autopilot](leaderboard_autopilot) and [scenario_runner_autopilot](scenario_runner_autopilot) folders.
-
-The dataset provided in this repository is not perfect. At some point while improving the model, you will likely need to collect an improved version.
-
-### Data buckets
-Our bucket file is included in the released dataset. Check out our Huggingface repo.
-If you want to generate your own buckets you can use the script `dataset_generation/data_buckets/carla_get_buckets.py`.
-
-### Language Data
-**VQA (DriveLM):** We use the script (with minor modifications) from [DriveLM](https://github.com/OpenDriveLab/DriveLM/tree/DriveLM-CARLA) to generate VQA labels. You can run `dataset_generation/language_labels/drivelm/carla_vqa_generator_main.py` to generate the VQA labels for your dataset. We used ChatGPT to augment the questions and answers. We provide the augmented templates, which we load during training in the folder [data/augmented_templates/drivelm_train_augmented_v2](data/augmented_templates/drivelm_train_augmented_v2). An example script to generate those augmented sentences can be found here: [dataset_generation/get_augmentations/gpt_augment_vqa.py](dataset_generation/get_augmentations/gpt_augment_vqa.py). **Note:** To be able to generate the VQA labels we save many auxiliary information of the simulator state during data collection. If you use a different dataset, it is likely that this labelling script does not work.
-
-**Commentary:** In this work we provide a new script to generate commentary labels. To generate commentary labels for your dataset, run `dataset_generation/language_labels/commentary/carla_commentary_generator_main.py`. We used ChatGPT to augment the questions and answers. We provide the augmented templates, which we load during training in the folder [data/augmented_templates/commentary_augmented.json](data/augmented_templates/commentary_augmented.json). Unfortunately, based on how the project evolved the augmentations were first done manually for subsentences and later merged. If helpful, we provide the subsentence level augmentationes [here](data/augmented_templates/commentary_subsentence.json) and the script to merge those to the final ones [here](dataset_generation/get_augmentations/commentary_merge_augmented.py). **Note:** To be able to generate the commentary labels, we save auxiliary information of the simulator state during data collection. If you use a different dataset, it is likely that this labelling script does not work.
-
-_File structure:_
-``` bash
-"image": # Path to RGB image
-"commentary": # Commentary string (not augmented)
-"commentary_template": # Commentary with placeholders for changing parts (e.g., object description, location). This is used to retrieve the augmentations.
-"cause_object_visible_in_image": # Whether the object that causes the expert actions is visible in the front view image. Could be used to filter samples where the commentary describes an action based on an object not visible.
-"cause_object": # Dictionary with attributes of the object causing the expert action.
-"cause_object_string": # Language description of the cause object (e.g., dark green car that is to the front)
-"scenario_name": # Name of the active CARLA scenario
-"placeholder": # Dictionary to be able to replace the placeholders in commentary_template.
-```
-
-### Dreamer Data
-To improve the alignment of language and actions, we propose _Action Dreaming_ for which we provide a dataset with multiple different future trajectories given a language instruction. The language instructions cover a wide range of modes (e.g., speed changes, lane changes, object-centric navigation, crashes) with a label indicating whether the execution is allowed and safe or not. 
-To generate the labels, run `dataset_generation/dreamer_data/dreamer_generator.py`.
-
-_File structure:_
-``` bash
-category: # e.g. "target_speed", "stop", "faster", "crash", ...
-      "waypoints": # Dreaming waypoints
-      "route": # Dreaming path
-      "rgb_path": # Path to RGB image in dataset
-      "allowed": # Flag if execution is allowed.
-      "mode": # category
-      "info": # more information, e.g., about current, target, and final speed
-      "route_reasoning": # Language description about the route.
-      "dreamer_instruction": # Language instruction.
-      "instructions_templates": # Instruction with placeholders for changing parts (e.g., object description, location). This is used to retrieve the augmentations.
-      "templates_placeholders": # Dictionary to be able to replace the placeholders in commentary_template.
-      "dreamer_answer_safety": # Answer when safety mode is activated.
-      "safe_to_execute": # Flag if the instruction is safe to execute.
-```
-
-## Training
-We provide code for the smaller model SimLingo-Base (previously CarLLaVA - without language capabilities) in the folder `simlingo_base_training` and for the full model SimLingo in `simlingo_training`. For the config managment we use hydra. The config parameters are defined in the `config.py` file and can be adjusted in the `.yaml` files inside the `config` folder. **Note:** You should double check if the paths to the dataset is correct.
-
-We provide a SLURM script to start training: [train_simlingo_seed1.sh](train_simlingo_seed1.sh). This can be easily converted to a bash script to locally start the training. The entry file for training is [simlingo_training/train.py](simlingo_training/train.py).
-
-With the default config, the training logs to Wandb. Login is required. We also include a visualization callback that plots ground truth and predicted waypoints during training.
-
-
-## Evaluation
-
-The model file can be downloaded from huggingface: https://huggingface.co/RenzKa/simlingo.
-If you only want to perfrom closed-loop driving evaluation, there is no need to download our dataset.
-
-
-### Bench2Drive
-Bench2Drive is a CARLA benchmark proposed by the paper [Bench2Drive: Towards Multi-Ability Benchmarking of Closed-Loop End-To-End Autonomous Driving](https://arxiv.org/abs/2406.03877). It consists of 220 very short (~150m) routes split across all towns with 1 safety critical scenario in each route.
-Since it uses all towns for training, the methods have seen the test towns during training, so it can be considered a 'training' benchmark (reminiscent of level 4 driving).
-The benchmark also comes with a training dataset generated by the [Think2Drive](https://arxiv.org/abs/2402.16720) expert, but we use the open-source expert [PDM-Lite](https://arxiv.org/abs/2312.14150) that achieves better resuslts and can be adapted to collect the necessary labels to produce VQA, Commentary and Dreamer data.
-The benchmark and additional instructions can be found in the [Bench2Drive](Bench2Drive) folder.
-
-**Start eval:** Evaluation on a SLURM cluster can be run with [start_eval_simlingo.py](start_eval_simlingo.py). The config dictionary needs to be adjusted with the correct names and paths. Most things that need to be changed are marked with TODO tags in [start_eval_simlingo.py](start_eval_simlingo.py). 
-
-**Get results:** The script [Bench2Drive/tools/merge_route_json.py](Bench2Drive/tools/merge_route_json.py) can be used to obtain the final metrics after the evaluation is done. Make sure that all 220 routes are evaluated.
-
-The Bench2Drive folder is based on version 0.0.3 of the [Bench2Drive repository](https://github.com/Thinklab-SJTU/Bench2Drive). Please cite the [Bench2Drive paper](https://arxiv.org/abs/2406.03877) when using the benchmark.
-
-### Language eval
-NOTE: Files might get cleaned at some point in the future (maybe not, depending on my time). Since the dataset and model are a reproduction and not the original ones from the paper, numbers deviate slightly. However, conclusions drawn in the paper still hold. We will update the numbers shortly.
-
-Entry point for the language evaluation is [simlingo_training/eval.py](simlingo_training/eval.py). Please change the variable `eval_mode` to `QA`, `commentary` or `Dreaming`.
-Afterwards, to obtain the metrics you can run [simlingo_training/eval_metrics.py](simlingo_training/eval_metrics.py). For this you first need to specify an OpenAI key here: [simlingo_training/utils/gpt_eval.py](simlingo_training/utils/gpt_eval.py)
-
 
 ---
 
-## Fail2Drive Integration
+## Compatibility Fixes Applied
 
-[Fail2Drive](https://github.com/autonomousvision/fail2drive) is a CARLA 0.9.15 benchmark that tests closed-loop generalization on 17 categories of truly unseen long-tail scenarios (animals, bad parking, road blocks, pedestrian crowds, obscured stop signs, etc.).
+The upstream SimLingo code was written for Python 3.8 / numpy 1.23 / transformers 4.21. This fork patches the following incompatibilities to run with CARLA 0.9.15 (Python 3.10), numpy 1.26, and transformers 4.46.
 
-This repo integrates Fail2Drive so that you can:
-1. **Evaluate SimLingo** on official and custom Fail2Drive routes.
-2. **Collect training data** with PDM-lite on those routes.
+### `team_code/agent_simlingo.py`
 
-### What was added (vs. upstream SimLingo)
+| Issue | Root Cause | Fix |
+|---|---|---|
+| `OSError: OpenGVLab/InternVL2-1B does not appear to have a file named config.json` | `AutoProcessor.from_pretrained` tried the HuggingFace hub while `TRANSFORMERS_OFFLINE=1` | After loading hydra config, resolve the local `pretrained/<model>` directory and override `cfg.model.vision_model.variant` to the absolute path |
+| `ImportError: cannot import name 'LlamaConfig' from 'transformers'` | `transformers==4.21.2` is too old; `LlamaConfig` was added in 4.28 | Upgraded to `transformers==4.46.3` |
+| `ValueError: setting an array element with a sequence. inhomogeneous shape` | numpy 1.26 is stricter — `velocity[0].data.cpu().numpy()` returns shape `[1]`, which caused the PID controller's speed window to become inhomogeneous | Changed to `float(velocity[0].data.cpu().numpy())` |
+| `TypeError: unsupported format string passed to Tensor.__format__` | Debug f-string `f"gt_vel={gt_velocity:.3f}"` with `gt_velocity` still being a tensor | Changed to `gt_velocity = float(tick_data['speed'])` |
+| Inference too slow for real-time (0.006x ratio) | Model inference (~2.5 s/step on a single A6000) ran every CARLA frame (20 FPS) | Added frame-skip: `SIMLINGO_INFERENCE_SKIP=N` runs the VLM only every N steps; stale control is reused on skipped frames |
 
-| Component | Change |
+**Local model path fix** (in `agent_simlingo.py`, after hydra config load):
+```python
+_model_name = cfg.model.vision_model.variant.split('/')[-1]
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_local_pretrained = os.path.join(_repo_root, 'pretrained', _model_name)
+if os.path.isdir(_local_pretrained):
+    self.cfg.model.vision_model.variant = _local_pretrained
+    cfg = self.cfg
+```
+
+**Frame-skip** (in `run_step`, after `tick_data = self.tick(input_data)`):
+```python
+_inference_skip = int(os.environ.get("SIMLINGO_INFERENCE_SKIP", "1"))
+if _inference_skip > 1 and self.step % _inference_skip != 0:
+    return self.control
+```
+
+### `team_code/requirements.txt`
+
+Updated package versions required on Python 3.10 / CARLA 0.9.15:
+
+```
+transformers==4.46.3   # was 4.21.2 — needed for LlamaConfig in InternVL2
+pytorch-lightning==2.4.0
+peft==0.13.2
+flash-attn             # compiled against CUDA 12.4
+hydra-core==1.3.2
+```
+
+---
+
+## Repository Structure
+
+```
+simlingo_f2d/
+├── team_code/
+│   ├── agent_simlingo.py        # SimLingo closed-loop agent (patched for F2D compat)
+│   └── requirements.txt         # pip dependencies for simlingo_f2d env
+├── leaderboard/
+│   └── data/
+│       ├── fail2drive_split/    # 100 official Fail2Drive route XMLs (17 categories)
+│       └── fail2drive_customized/  # custom routes you create
+├── scenario_runner/srunner/scenarios/
+│   └── (+ 5 Fail2Drive scenario types: roadblocked, image_on_object,
+│          obscured_stop_sign, pedestrian_crowd, pedestrian_on_road)
+├── start_eval_local.py          # local (no-SLURM) eval script — run one route at a time
+├── start_eval_simlingo.py       # SLURM eval script (Bench2Drive + Fail2Drive)
+├── collect_dataset_f2d.py       # PDM-lite data collection on Fail2Drive routes (SLURM)
+├── environment_f2d.yaml         # conda env spec (Python 3.10)
+└── pretrained/
+    └── InternVL2-1B -> /path/to/InternVL2-1B  # symlink to local model
+```
+
+---
+
+## Evaluating on Fail2Drive Scenes (Local, No SLURM)
+
+`start_eval_local.py` runs one route at a time on your local machine without SLURM. It starts and stops CARLA automatically for each route, writes results to JSON, and retries failed routes.
+
+```bash
+conda activate simlingo_f2d
+cd /path/to/simlingo_f2d
+python start_eval_local.py
+```
+
+### Config Reference
+
+Edit the `configs` list at the top of `start_eval_local.py`:
+
+```python
+configs = [
+    {
+        # Path to the SimLingo pytorch_model.pt checkpoint
+        "checkpoint": "/path/to/models/simlingo_official/simlingo/checkpoints/epoch=013.ckpt/pytorch_model.pt",
+
+        # "fail2drive" uses 4-digit zero-padding for route IDs
+        "benchmark": "fail2drive",
+
+        # Folder containing .xml route files to evaluate
+        "route_path": "/path/to/simlingo_f2d/leaderboard/data/fail2drive_customized",
+        # or for the 100 official routes:
+        # "route_path": "/path/to/simlingo_f2d/leaderboard/data/fail2drive_split",
+
+        # Traffic-manager seeds (one eval pass per seed)
+        "seeds": [1],
+
+        # How many times to retry a failed route before giving up
+        "tries": 2,
+
+        # Root output directory; results go under <out_root>/<agent>/<benchmark>/<seed>/
+        "out_root": "/path/to/simlingo_f2d/eval_results/Fail2Drive",
+
+        # CARLA 0.9.15 installation root (must have CarlaUE4.sh)
+        "carla_root": "/path/to/CarlaUE4_0.9.15",
+
+        # This repo root
+        "repo_root": "/path/to/simlingo_f2d",
+
+        # Agent entry point
+        "agent_file": "/path/to/simlingo_f2d/team_code/agent_simlingo.py",
+
+        # CUDA_VISIBLE_DEVICES for the agent process
+        # CARLA renders via Vulkan on the display GPU (graphicsadapter=0);
+        # pick a different GPU for the agent to avoid contention.
+        "cuda_device": "0",
+
+        # Run VLM inference every N frames (1 = every frame, accurate but slow).
+        # At inference_skip=5 on an A6000: ~0.08x game/real ratio.
+        # Use inference_skip=1 when you have a fast GPU or need full accuracy.
+        "inference_skip": 1,
+    },
+]
+```
+
+**Key constants** (also at the top of the file):
+
+| Constant | Default | Meaning |
+|---|---|---|
+| `CARLA_STARTUP_WAIT` | 60 s | Seconds to wait for CARLA to initialize before starting the agent |
+| `ROUTE_TIMEOUT` | 300 s | Leaderboard game-time timeout per route |
+| `SUBPROCESS_TIMEOUT` | `ROUTE_TIMEOUT * 100` | Wall-clock timeout for the subprocess; increase if inference is very slow |
+
+### GPU Assignment Notes
+
+CARLA always uses the GPU selected by Vulkan (`-graphicsadapter=0`), which is the first display-capable GPU regardless of `CUDA_VISIBLE_DEVICES`. Set `cuda_device` to any other GPU index to avoid the agent and renderer competing.
+
+| Scenario | Recommended setting |
 |---|---|
-| `scenario_runner/srunner/scenarios/` | +5 Fail2Drive scenario types: `roadblocked`, `image_on_object`, `obscured_stop_sign`, `pedestrian_crowd`, `pedestrian_on_road` |
-| `scenario_runner_autopilot/srunner/scenarios/` | same 5 files (for PDM-lite data collection) |
-| `leaderboard/leaderboard/utils/route_parser.py` | Parses optional `<metrics><skip>` blocks in route XMLs |
-| `leaderboard/leaderboard/scenarios/route_scenario.py` | Respects `skip_criteria` (e.g. skip `MinSpeedTest` for blocked-road scenarios) |
-| `leaderboard_autopilot/` | Same route_parser and route_scenario changes |
-| `leaderboard/data/fail2drive_split/` | 100 official Fail2Drive route XMLs (17 categories) |
-| `leaderboard/data/fail2drive_customized/` | Custom routes you create with the toolbox |
-| `start_eval_simlingo.py` | New `bash_file_fail2drive()` function + `"benchmark": "fail2drive"` config support |
-| `collect_dataset_f2d.py` | New data-collection script for Fail2Drive routes using PDM-lite |
-| `env_vars.sh` | Environment setup for `simlingo_f2d` conda env |
-| `environment_f2d.yaml` | Python 3.10 conda env spec |
+| Dedicated GPU for agent (fast) | `cuda_device: "0"`, `inference_skip: 1` |
+| CARLA on GPU 0, agent on GPU 1 | `cuda_device: "1"`, `inference_skip: 1` |
+| Only one free GPU (slow machine) | `cuda_device: "<free>", inference_skip: 5` (~0.08x ratio) |
+
+**Performance reference** (NVIDIA RTX A6000, `inference_skip=5`):
+
+| Metric | Value |
+|---|---|
+| Game / real-time ratio | ~0.083x |
+| Wall time per 300-game-second route | ~60 minutes |
+| VLM inference frequency | every 5 frames (4 FPS effective) |
+
+### Checking Results
+
+Results are written as JSON files:
+```
+eval_results/Fail2Drive/<agent>/fail2drive/<seed>/
+    res/<route_id>_res.json    # leaderboard result JSON
+    out/<route_id>_out.log     # stdout from leaderboard_evaluator
+    err/<route_id>_err.log     # stderr
+    viz/<route_id>/            # saved sensor images (if SAVE_PATH used)
+```
+
+Quick summary across all results:
+```bash
+python3 - <<'EOF'
+import ujson, glob, os
+for f in sorted(glob.glob("eval_results/Fail2Drive/simlingo/fail2drive/1/res/*.json")):
+    d = ujson.load(open(f))
+    p = d["_checkpoint"]["progress"]
+    recs = d["_checkpoint"]["records"]
+    name = os.path.basename(f)
+    if recs:
+        r = recs[0]
+        print(f"{name}: {r['status']} | route={r['scores'].get('score_route','?')} penalty={r['scores'].get('score_penalty','?')}")
+    else:
+        print(f"{name}: progress={p} (in progress)")
+EOF
+```
+
+To merge all results into a single score (same tool as Bench2Drive):
+```bash
+python Bench2Drive/tools/merge_route_json.py \
+    --results eval_results/Fail2Drive/simlingo/fail2drive/1/res/
+```
 
 ---
 
-### Creating New Scenes
+## Creating New Custom Scenes
 
-Fail2Drive provides a GUI toolbox to create custom route XMLs without writing code.
+Fail2Drive provides a GUI toolbox for designing route XMLs without writing code.
 
-#### Step 1 — Launch the Fail2Drive toolbox
-The toolbox is included in the original [fail2drive](https://github.com/autonomousvision/fail2drive) repo under `toolbox/`.
-You need a running CARLA instance and the `fail2drive` conda env:
+### Step 1 — Launch the Fail2Drive toolbox
+
 ```bash
 conda activate fail2drive
 cd /path/to/fail2drive
-# Start CARLA first (in another terminal)
+
+# Start CARLA (separate terminal)
 bash start_carla.sh
 
-# Then launch the toolbox
+# Launch the toolbox
 bash toolbox/start_window.sh
 ```
 
-#### Step 2 — Design your route and scenario
-In the toolbox GUI you can:
-- Pick a start waypoint and end waypoint on the CARLA map
-- Select a scenario type from the supported list
-- Configure scenario parameters (obstacle model, trigger distance, direction, etc.)
-- Export the route as an XML file
+### Step 2 — Design your route
 
-#### Step 3 — Save your custom route XML
-Place the exported XML file in:
-```
-simlingo_f2d/leaderboard/data/fail2drive_customized/
-```
+In the GUI:
+- Pick start and end waypoints on the CARLA map
+- Select a scenario type (obstacle, pedestrian crowd, blocked intersection, etc.)
+- Configure parameters (trigger distance, direction, actor model, etc.)
+- Export the route as XML
 
-**Naming convention** (recommended, matches the official fail2drive format):
+### Step 3 — Save to the customized folder
+
 ```
-<Category>_<four-digit-id>.xml
-```
-Examples:
-```
-leaderboard/data/fail2drive_customized/MyObstacle_0000.xml
-leaderboard/data/fail2drive_customized/LeftTurnBlock_0001.xml
+simlingo_f2d/leaderboard/data/fail2drive_customized/<name>.xml
 ```
 
-Each XML encodes the town, waypoints, weather, and scenario parameters:
+**Naming convention:**
+```
+testing_<description>_<id>.xml
+```
+
+### Route XML format
+
 ```xml
 <routes>
   <route id="0" town="Town12">
     <weathers>
-      <weather route_percentage="0" cloudiness="5.0" ... sun_altitude_angle="45.0" .../>
+      <weather route_percentage="0" cloudiness="5.0" sun_altitude_angle="45.0" .../>
     </weathers>
     <waypoints>
       <position x="-1703.7" y="4889.6" z="376.8"/>
@@ -379,7 +352,7 @@ Each XML encodes the town, waypoints, weather, and scenario parameters:
 </routes>
 ```
 
-For scenarios where `MinSpeedTest` would unfairly penalise the agent (e.g. road fully blocked), add a metrics block:
+For scenarios where a blocked road would unfairly fail `MinSpeedTest`, add:
 ```xml
 <metrics>
   <skip name="MinSpeedTest"/>
@@ -388,81 +361,33 @@ For scenarios where `MinSpeedTest` would unfairly penalise the agent (e.g. road 
 
 ---
 
-### Evaluating SimLingo on Fail2Drive Scenes
+## Collecting Training Data on Fail2Drive Scenes
 
-Edit `start_eval_simlingo.py` and uncomment + fill in the `fail2drive` config block:
+PDM-lite can collect training data on Fail2Drive routes (for fine-tuning SimLingo on new scenarios).
 
+Edit `collect_dataset_f2d.py` and fill in paths at the bottom:
 ```python
-configs = [
-    {
-        "agent": "simlingo",
-        "checkpoint": "/path/to/simlingo_f2d/outputs/simlingo/checkpoints/epoch=013.ckpt/pytorch_model.pt",
-        "benchmark": "fail2drive",
-        "route_path": "/path/to/simlingo_f2d/leaderboard/data/fail2drive_split",  # or fail2drive_customized
-        "seeds": [1],
-        "tries": 2,
-        "out_root": "/path/to/simlingo_f2d/eval_results/Fail2Drive",
-        "carla_root": "/path/to/CarlaUE4_0.9.15",
-        "repo_root": "/path/to/simlingo_f2d",
-        "agent_file": "/path/to/simlingo_f2d/team_code/agent_simlingo.py",
-        "team_code": "team_code",
-        "agent_config": "not_used",
-        "username": "YOUR_USERNAME",
-    }
-]
+default_partition = "YOUR_SLURM_PARTITION"
+username          = "YOUR_USERNAME"
+code_root         = "/path/to/simlingo_f2d"
+carla_root        = "/path/to/CarlaUE4_0.9.15"
 ```
 
-Then run:
+Run:
 ```bash
 conda activate simlingo_f2d
-cd /path/to/simlingo_f2d
-python start_eval_simlingo.py
-```
-
-Results are written to `eval_results/Fail2Drive/<agent>/<seed>/res/`.
-
----
-
-### Collecting Training Data on Fail2Drive Scenes
-
-PDM-lite (the same expert used for SimLingo's original dataset) can collect training data on Fail2Drive routes.
-
-#### Edit `collect_dataset_f2d.py`
-Fill in your paths and cluster settings at the bottom of the file:
-```python
-default_partition = "YOUR_PARTITION"   # SLURM partition name
-username         = "YOUR_USERNAME"     # your cluster username
-code_root        = "/path/to/simlingo_f2d"
-carla_root       = "/path/to/CarlaUE4_0.9.15"
-```
-
-By default the script collects on **all** official Fail2Drive routes **plus** any XMLs you put in `fail2drive_customized/`.
-To restrict to only your custom scenes, comment out the `route_folder_official` line.
-
-#### Run data collection
-```bash
-conda activate simlingo_f2d
-cd /path/to/simlingo_f2d
-# Optionally set max parallel SLURM jobs:
-echo "4" > max_num_jobs.txt
+echo "4" > max_num_jobs.txt    # max parallel SLURM jobs
 python collect_dataset_f2d.py
 ```
 
-Data is saved to `database/simlingo_f2d_<date>/data/<route_id>/`.
-Checkpoint JSON results go to `database/simlingo_f2d_<date>/results/`.
-
-#### Using the collected data for training
-The collected data has the same format as the original SimLingo dataset.
-Add the new data directory to your training config (in `simlingo_training/config/`) alongside the original dataset.
+Data is saved to `database/simlingo_f2d_<date>/data/<route_id>/` in the same format as the original SimLingo dataset. Add the new path to `simlingo_training/config/` alongside the original dataset.
 
 ---
 
 ## Citations
-If you find this repository useful, please consider giving us a star &#127775;.
-Please cite the following papers for the respective components of the repo:
 
 SimLingo:
-```BibTeX
+```bibtex
 @InProceedings{Renz2025cvpr,
   title={SimLingo: Vision-Only Closed-Loop Autonomous Driving with Language-Action Alignment},
   author={Renz, Katrin and Chen, Long and Arani, Elahe and Sinavski, Oleg},
@@ -471,29 +396,8 @@ SimLingo:
 }
 ```
 
-PDM-Lite expert:
-```BibTeX
-@inproceedings{Sima2024ECCV,
-  title={DriveLM: Driving with Graph Visual Question Answering},
-  author={Chonghao Sima and Katrin Renz and Kashyap Chitta and Li Chen and Hanxue Zhang and Chengen Xie and Jens Beißwenger and Ping Luo and Andreas Geiger and Hongyang Li},
-  booktitle={Proc. of the European Conf. on Computer Vision (ECCV)},
-  year={2024}
-}
-```
-
-Bench2Drive benchmark:
-
-```BibTeX
-@inproceedings{Jia2024NeurIPS,
-  title={Bench2Drive: Towards Multi-Ability Benchmarking of Closed-Loop End-To-End Autonomous Driving},
-  author={Xiaosong Jia and Zhenjie Yang and Qifeng Li and Zhiyuan Zhang and Junchi Yan},
-  booktitle={NeurIPS 2024 Datasets and Benchmarks Track},
-  year={2024}
-}
-```
-
-Fail2Drive benchmark:
-```BibTeX
+Fail2Drive:
+```bibtex
 @inproceedings{Hoss2025fail2drive,
   title={Fail2Drive: A Benchmark for Closed-Loop Generalization on Unseen Long-Tail Scenarios},
   author={Hoss, Michael and others},
@@ -502,8 +406,12 @@ Fail2Drive benchmark:
 }
 ```
 
-## Other Resources
-- [tuPlan garage](https://github.com/autonomousvision/tuplan_garage) | [CARLA garage](https://github.com/autonomousvision/carla_garage) | [Survey on E2EAD](https://github.com/OpenDriveLab/End-to-end-Autonomous-Driving)
-- [DriveLM](https://github.com/OpenDriveLab/DriveLM/tree/main) | [PlanT](https://github.com/autonomousvision/plant) | [KING](https://github.com/autonomousvision/king) | [TransFuser](https://github.com/autonomousvision/transfuser) | [NEAT](https://github.com/autonomousvision/neat)
-- [Fail2Drive](https://github.com/autonomousvision/fail2drive)
-
+PDM-Lite expert:
+```bibtex
+@inproceedings{Sima2024ECCV,
+  title={DriveLM: Driving with Graph Visual Question Answering},
+  author={Chonghao Sima and Katrin Renz and Kashyap Chitta and Li Chen and Hanxue Zhang and Chengen Xie and Jens Beißwenger and Ping Luo and Andreas Geiger and Hongyang Li},
+  booktitle={Proc. of the European Conf. on Computer Vision (ECCV)},
+  year={2024}
+}
+```

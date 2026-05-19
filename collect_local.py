@@ -42,7 +42,7 @@ _date = datetime.now().strftime("%Y%m%d_%H%M%S")
 config = {
     # Set route_file to a single XML path to run just one scene.
     # Leave as None to run all XMLs in route_path.
-    "route_file": None,
+    "route_file": "/mnt/SSD/Coop_closed_loop/simlingo_f2d/leaderboard/data/fail2drive_customized/testing_leftTurn_object8.xml",
     # "route_file": "/mnt/SSD/Coop_closed_loop/simlingo_f2d/leaderboard/data/fail2drive_customized/testing_leftTurn_object.xml",
 
     "route_path": "/mnt/SSD/Coop_closed_loop/simlingo_f2d/leaderboard/data/fail2drive_customized",
@@ -53,6 +53,11 @@ config = {
 
     "carla_root": "/mnt/SSD/Coop_closed_loop/fail2drive/f2d_carla",
     "repo_root":  "/mnt/SSD/Coop_closed_loop/simlingo_f2d",
+
+    # If CARLA is already running, set carla_port to its RPC port to reuse it.
+    # The script will skip starting/stopping CARLA entirely.
+    # Leave as None to let the script manage CARLA automatically.
+    "carla_port": 2000,
 
     "seed":  1,
     "tries": 2,
@@ -109,12 +114,16 @@ def is_done(result_file):
 
 
 def run_route(cfg, route_xml, route_id, save_path, result_file, log_file, err_file):
-    carla_root = cfg["carla_root"]
-    repo_root  = cfg["repo_root"]
+    carla_root  = cfg["carla_root"]
+    repo_root   = cfg["repo_root"]
+    carla_port  = cfg.get("carla_port")  # None = managed, int = reuse existing
 
-    world_port     = find_free_port(20000, 20500)
-    streaming_port = find_free_port(20500, 21000)
-    tm_port        = find_free_port(21000, 21500)
+    if carla_port:
+        world_port = carla_port
+    else:
+        world_port     = find_free_port(20000, 20500)
+        streaming_port = find_free_port(20500, 21000)
+    tm_port = find_free_port(21000, 21500)
 
     site_pkgs = ":".join(site.getsitepackages())
 
@@ -144,25 +153,27 @@ def run_route(cfg, route_xml, route_id, save_path, result_file, log_file, err_fi
     os.makedirs(os.path.dirname(err_file), exist_ok=True)
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
 
-    # Start CARLA
-    carla_cmd = [
-        f"{carla_root}/CarlaUE4.sh",
-        f"-carla-rpc-port={world_port}",
-        "-nosound", "-RenderOffScreen",
-        "-carla-primary-port=0",
-        "-graphicsadapter=0",
-        f"-carla-streaming-port={streaming_port}",
-    ]
-    print(f"  Starting CARLA on port {world_port}...")
-    carla_proc = subprocess.Popen(
-        carla_cmd, env=env,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        preexec_fn=os.setsid,
-    )
-    _carla_procs.append(carla_proc)
-    time.sleep(CARLA_STARTUP_WAIT)
+    carla_proc = None
+    if not carla_port:
+        carla_cmd = [
+            f"{carla_root}/CarlaUE4.sh",
+            f"-carla-rpc-port={world_port}",
+            "-nosound", "-RenderOffScreen",
+            "-carla-primary-port=0",
+            "-graphicsadapter=0",
+            f"-carla-streaming-port={streaming_port}",
+        ]
+        print(f"  Starting CARLA on port {world_port}...")
+        carla_proc = subprocess.Popen(
+            carla_cmd, env=env,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            preexec_fn=os.setsid,
+        )
+        _carla_procs.append(carla_proc)
+        time.sleep(CARLA_STARTUP_WAIT)
+    else:
+        print(f"  Using existing CARLA on port {world_port}")
 
-    # Run PDM-lite data collection via leaderboard_evaluator_local
     collect_cmd = [
         sys.executable, "-u",
         f"{repo_root}/leaderboard_autopilot/leaderboard/leaderboard_evaluator_local.py",
@@ -205,13 +216,14 @@ def run_route(cfg, route_xml, route_id, save_path, result_file, log_file, err_fi
     except Exception as e:
         print(f"  Route {route_id} error: {e}")
     finally:
-        try:
-            os.killpg(os.getpgid(carla_proc.pid), signal.SIGKILL)
-        except Exception:
-            pass
-        carla_proc.wait()
-        if carla_proc in _carla_procs:
-            _carla_procs.remove(carla_proc)
+        if carla_proc is not None:
+            try:
+                os.killpg(os.getpgid(carla_proc.pid), signal.SIGKILL)
+            except Exception:
+                pass
+            carla_proc.wait()
+            if carla_proc in _carla_procs:
+                _carla_procs.remove(carla_proc)
 
     return success
 

@@ -83,6 +83,10 @@ class DataAgent(AutoPilot):
                 (self.save_path / 'bev_semantics_augmented').mkdir()
 
         self.tmp_visu = int(os.environ.get('TMP_VISU', 0))
+        # visu_only: save only front RGB frames, no LiDAR/boxes/labels
+        self.visu_only = int(os.environ.get('VISU_ONLY', 0))
+        if self.save_path is not None and self.visu_only:
+            (self.save_path / 'rgb').mkdir(parents=True, exist_ok=True)
 
         self._active_traffic_light = None
         self.last_lidar = None
@@ -129,7 +133,7 @@ class DataAgent(AutoPilot):
 
         result = super().sensors()
 
-        if self.save_path is not None and (self.datagen or self.tmp_visu):
+        if self.save_path is not None and (self.datagen or self.tmp_visu or self.visu_only):
             result += [{
                     'type': 'sensor.camera.rgb',
                     'x': self.config.camera_pos[0],
@@ -229,7 +233,7 @@ class DataAgent(AutoPilot):
     def tick(self, input_data):
         result = {}
 
-        if self.save_path is not None and (self.datagen or self.tmp_visu):
+        if self.save_path is not None and (self.datagen or self.tmp_visu or self.visu_only):
             rgb = input_data['rgb'][1][:, :, :3]
             rgb_augmented = input_data['rgb_augmented'][1][:, :, :3]
 
@@ -328,6 +332,9 @@ class DataAgent(AutoPilot):
         if self.step % self.config.data_save_freq == 0:
             if self.save_path is not None and self.datagen:
                 self.save_sensors(tick_data)
+            elif self.save_path is not None and self.visu_only and tick_data.get('rgb') is not None:
+                frame = self.step // self.config.data_save_freq
+                cv2.imwrite(str(self.save_path / 'rgb' / f'{frame:04d}.jpg'), tick_data['rgb'])
 
         self.last_lidar = input_data['lidar']
         self.last_ego_transform = self._vehicle.get_transform()

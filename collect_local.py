@@ -52,12 +52,15 @@ config = {
     "seed":  1,
     "tries": 2,
 
-    # Set to 1 to save merged BEV+RGB visualization frames alongside sensor data.
-    # The frames go to <out_root>/<route_id>/bev_visu/
-    "tmp_visu": 0,
+    # visu_only: save only front RGB frames — no LiDAR, boxes, or labels.
+    # Use this to verify a scene looks correct before committing to full collection.
+    # After the run: ffmpeg -framerate 20 -i <out_root>/data/<route_id>/rgb/%04d.jpg out.mp4
+    "visu_only": 1,
 
-    # Set to 1 to also save semantic segmentation and depth labels.
-    # Requires more disk space; only needed for full training label generation.
+    # Full data collection options (ignored when visu_only=1):
+    # Set tmp_visu=1 to also save merged BEV+RGB composite frames.
+    "tmp_visu": 0,
+    # Set save_tf_labels=1 to also save semantics/depth (needed for full label generation).
     "save_tf_labels": 0,
 }
 
@@ -125,7 +128,8 @@ def run_route(cfg, route_xml, route_id, save_path, result_file, log_file, err_fi
     )
     env["VK_ICD_FILENAMES"]  = "/usr/share/vulkan/icd.d/nvidia_icd.json"
     env["SAVE_PATH"]         = save_path
-    env["DATAGEN"]           = "1"
+    env["VISU_ONLY"]         = str(cfg.get("visu_only", 0))
+    env["DATAGEN"]           = "0" if cfg.get("visu_only") else "1"
     env["TMP_VISU"]          = str(cfg.get("tmp_visu", 0))
     env["SAVE_TF_LABELS"]    = str(cfg.get("save_tf_labels", 0))
     env["RESUME"]            = "1"

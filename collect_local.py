@@ -40,6 +40,11 @@ signal.signal(signal.SIGTERM, lambda s, f: (print("\nCleaning up CARLA..."), _cl
 _date = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 config = {
+    # Set route_file to a single XML path to run just one scene.
+    # Leave as None to run all XMLs in route_path.
+    "route_file": None,
+    # "route_file": "/mnt/SSD/Coop_closed_loop/simlingo_f2d/leaderboard/data/fail2drive_customized/testing_leftTurn_object.xml",
+
     "route_path": "/mnt/SSD/Coop_closed_loop/simlingo_f2d/leaderboard/data/fail2drive_customized",
     # Or for the 100 official routes:
     # "route_path": "/mnt/SSD/Coop_closed_loop/simlingo_f2d/leaderboard/data/fail2drive_split",
@@ -213,14 +218,19 @@ def run_route(cfg, route_xml, route_id, save_path, result_file, log_file, err_fi
 
 def main():
     cfg = config
-    route_path = cfg["route_path"]
-    routes = sorted(x for x in os.listdir(route_path) if x.endswith(".xml"))
     out_root = cfg["out_root"]
 
+    if cfg.get("route_file"):
+        route_xmls = [cfg["route_file"]]
+    else:
+        route_path = cfg["route_path"]
+        route_xmls = sorted(os.path.join(route_path, x)
+                            for x in os.listdir(route_path) if x.endswith(".xml"))
+
     job_queue = []
-    for fname in routes:
+    for route_xml in route_xmls:
+        fname = os.path.basename(route_xml)
         route_id    = os.path.splitext(fname)[0]
-        route_xml   = os.path.join(route_path, fname)
         save_path   = os.path.join(out_root, "data", route_id)
         result_file = os.path.join(out_root, "results", f"{route_id}_res.json")
         log_file    = os.path.join(out_root, "logs", f"{route_id}_out.log")
